@@ -1,0 +1,110 @@
+swagger: '2.0'
+info:
+  title: Transport Layer
+  description: API для сегментации сообщений и собрки и перессылки на канальный и
+    прикладной уровни
+  version: v1
+host: 127.0.0.1:8000
+schemes:
+- http
+basePath: /
+consumes:
+- application/json
+produces:
+- application/json
+securityDefinitions:
+  Basic:
+    type: basic
+security:
+- Basic: []
+paths:
+  /postSegment/:
+    post:
+      operationId: postSegment_create
+      description: Положить сегмент в брокер сообщений Kafka
+      parameters:
+      - name: data
+        in: body
+        required: true
+        schema:
+          type: object
+          properties:
+            segment_number:
+              description: Номер сегмента
+              type: integer
+            amount_segments:
+              description: Общее число сегментов
+              type: integer
+            segment_data:
+              description: Тело сегмента
+              type: string
+            dispatch_time:
+              description: Время отправки сообщения
+              type: integer
+            sender:
+              description: Отправитель
+              type: string
+      responses:
+        '201':
+          description: ''
+          schema:
+            type: object
+            properties:
+              segment_number:
+                description: Номер сегмента
+                type: integer
+              amount_segments:
+                description: Общее число сегментов
+                type: integer
+              segment_data:
+                description: Тело сегмента
+                type: string
+              dispatch_time:
+                description: Время отправки сообщения
+                type: integer
+              sender:
+                description: Отправитель
+                type: string
+      tags:
+      - postSegment
+    parameters: []
+  /transferMessage/:
+    post:
+      operationId: transferMessage_create
+      description: Разбить сообщение на сегменты длинной 320 байт и последовательная
+        передача их на канальный уровень
+      parameters:
+      - name: data
+        in: body
+        required: true
+        schema:
+          type: object
+          properties:
+            text:
+              description: Тело сообщения
+              type: string
+            time:
+              description: Время отправки сообщения
+              type: integer
+            sender:
+              description: Отправитель
+              type: string
+      responses:
+        '201':
+          description: ''
+          schema:
+            type: object
+            properties:
+              text:
+                description: Тело сообщения
+                type: string
+              time:
+                description: Время отправки сообщения
+                type: integer
+              sender:
+                description: Отправитель
+                type: string
+      tags:
+      - transferMessage
+    parameters: []
+definitions: {}
