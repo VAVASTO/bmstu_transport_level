@@ -15,6 +15,7 @@ from django.http import HttpResponse
 from rest_framework.decorators import api_view
 from rest_framework import status
 from kafka import KafkaProducer
+from itertools import islice
 import threading
 import time
 import json
@@ -23,7 +24,7 @@ import json
 # kafka-console-consumer --bootstrap-server localhost:29092 --delete --topic Messages
 # kafka-topics --bootstrap-server localhost:29092 --delete --topic Messages
 
-byte_size = 13
+byte_size = 130
 
 topic = "Messages"
 
@@ -32,6 +33,11 @@ producer = KafkaProducer(
         value_serializer=lambda x: json.dumps(x).encode('utf-8'),
         batch_size=1
     )
+
+def batched(iterable, n):
+    it = iter(iterable)
+    while batch := tuple(islice(it, n)):
+        yield batch
 
 @api_view(['POST'])
 def post_segment(request):
@@ -47,17 +53,28 @@ def transfer_msg(request):
     """
         Разбить сообщение на сегменты длинной 130 байт и последовательная передача их на канальный уровень 
     """
-    
     message = request.data['message']
-    message_parts = [message[i:i+byte_size] for i in range(0, len(message), byte_size)]
 
-    for index, part in enumerate(message_parts):
-        part_bytes = part.encode('utf-8')
-        segment_data = {'part_message_id': len(message_parts) - 1 - index, 'amount_segments': len(message_parts),'message': part_bytes.decode('utf-8'), 
-                        'timestamp': request.data['timestamp'], 'login': request.data['sender']}
-        requests.post('http://25.59.51.201:8889/code/', json=segment_data)
+    result_dicts = []
+    request_message_bytes = bytes(message.encode('utf-8'))
+    
+    for i, batch in enumerate(batched(request_message_bytes, byte_size)):
+        result_dicts.append(
+            {
+                "login": request.data['sender'],
+                "timestamp": request.data['timestamp'],
+                "part_message_id": i,
+                "message": str(bytes(batch)),
+            }
+        )
 
-    return HttpResponse(status=200)
+    total_len = len(result_dicts)
+    for d in result_dicts:
+        d["amount_segments"] = total_len
+        d["part_message_id"] = total_len - d["part_message_id"] - 1
+        requests.post('http://25.59.51.201:8889/code/', json=d)
+            
+    return Response(status=status.HTTP_200_OK)
 
 def send_mesg_to_app_layer(time, sender, message, flag_error):
 
@@ -67,7 +84,7 @@ def send_mesg_to_app_layer(time, sender, message, flag_error):
         "message": message,
         "flag_error": flag_error
     } 
-    print(f"sending message to application layer {json_data}")
+    print(f"передача сообщения на прикладной уровень {json_data}")
 
     return 0
 
