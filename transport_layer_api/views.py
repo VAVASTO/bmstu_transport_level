@@ -40,17 +40,7 @@ def post_segment(request):
     """
     producer.send(topic, request.data)
 
-    return HttpResponse(status=200) 
-
-def binary_to_string(b):
-    n = int(b, 2)
-    res = bytearray()
-    while n:
-        res.append(n & 0xff)
-        n >>= 8
-    res.reverse()
-    return res.decode('utf-8')
-
+    return HttpResponse(status=200)
 
 @api_view(['POST'])
 def transfer_msg(request):
@@ -58,22 +48,18 @@ def transfer_msg(request):
         Разбить сообщение на сегменты длинной 130 байт и последовательная передача их на канальный уровень 
     """
     
-    message_bytes = request.data['message']
-    print(f"message received {message_bytes}")
-    message_bytes = ''.join(f'{i:08b}' for i in message_bytes.encode('utf-8'))
-    print(f"message received [bytes] {message_bytes}")
+    message = request.data['message']
+    message_parts = [message[i:i+byte_size] for i in range(0, len(message), byte_size)]
 
-    segments = [message_bytes[i:i+byte_size] for i in range(0, len(message_bytes), byte_size)]
-
-    for index, segment in enumerate(segments):
-        segment_data = {'part_message_id': len(segments) - 1 - index, 'amount_segments': len(segments),'message': segment, 'timestamp': request.data['timestamp'], 'login': request.data['sender']}
-        requests.post('http://localhost:8889/code/', json=segment_data)
+    for index, part in enumerate(message_parts):
+        part_bytes = part.encode('utf-8')
+        segment_data = {'part_message_id': len(message_parts) - 1 - index, 'amount_segments': len(message_parts),'message': part_bytes.decode('utf-8'), 
+                        'timestamp': request.data['timestamp'], 'login': request.data['sender']}
+        requests.post('http://25.59.51.201:8889/code/', json=segment_data)
 
     return HttpResponse(status=200)
 
-def send_mesg_to_app_layer(time, sender, message_bytes, flag_error):
-
-    message = binary_to_string(message_bytes)
+def send_mesg_to_app_layer(time, sender, message, flag_error):
 
     json_data = {
         "timestamp": time,
